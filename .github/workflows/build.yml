@@ -1,41 +1,57 @@
-name: Compiler Helios (APK)
+name: Build HELIOS ULTIMATE FULL APK
 
 on:
-  push:
   workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+
     steps:
-      - name: Récupérer le code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Préparer le projet (ZIP ou fichiers à plat)
-        run: |
-          if [ -f Helios.zip ]; then
-            unzip -oq Helios.zip
-            cp -r Helios/projet_complet/. .
-          fi
-          if [ -f organiser.sh ]; then bash organiser.sh; fi
-          ls -R app | head -50
-
-      - name: Installer Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      - name: Installer Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v5
         with:
-          gradle-version: "8.9"
+          gradle-version: '8.13'
 
-      - name: Compiler l'APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Publier l'APK
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Extract HELIOS ZIP
+        run: |
+          set -e
+          mkdir -p source
+          unzip -q HELIOS_ULTIMATE_FULL.zip -d source
+          PROJECT_DIR=$(find source -type f -name settings.gradle.kts -printf '%h\n' | head -n 1)
+          test -n "$PROJECT_DIR"
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: gradle -p "$PROJECT_DIR" :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Helios-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: HELIOS-ULTIMATE-FULL-debug-apk
+          path: $ {{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+          
